@@ -1,0 +1,195 @@
+<nz-layout class="min-h-screen">
+  <!-- The shell (top bar, drawer, banners) is only for signed-in users; /login and /setup render bare. -->
+  @if (auth.user(); as me) {
+    <nz-header class="topbar sticky top-0 z-10 flex items-center gap-4 max-xl:gap-2 max-xl:px-3">
+      <button
+        type="button"
+        class="burger grid shrink-0 place-items-center xl:hidden"
+        aria-label="เปิดเมนู"
+        (click)="navOpen.set(true)"
+      >
+        <nz-icon nzType="menu" />
+      </button>
+
+      <a class="brand shrink-0 max-xl:hidden" routerLink="/receipts">Receipt Reader</a>
+
+      @if (store.companies().length) {
+        <nz-select
+          class="w-55 shrink-0 max-xl:w-auto max-xl:min-w-0 max-xl:flex-1"
+          nzShowSearch
+          [ngModel]="store.current()?.id"
+          (ngModelChange)="store.select($event)"
+          nzPlaceHolder="เลือกบริษัท"
+          aria-label="บริษัท"
+        >
+          @for (c of store.companies(); track c.id) {
+            <nz-option [nzValue]="c.id" [nzLabel]="c.name"></nz-option>
+          }
+        </nz-select>
+      }
+
+      <div class="flex min-w-0 flex-1 items-center gap-4 max-xl:hidden">
+        <ul nz-menu nzMode="horizontal" class="menu min-w-0 flex-1">
+          @for (l of mainLinks(); track l.path) {
+            <li nz-menu-item nzMatchRouter>
+              <a [routerLink]="l.path">{{ l.label }}</a>
+            </li>
+          }
+          <li nz-submenu nzTitle="สต็อก" nzIcon="shop">
+            <ul>
+              @for (l of stockLinks; track l.path) {
+                <li nz-menu-item nzMatchRouter>
+                  <a [routerLink]="l.path"><nz-icon [nzType]="l.icon" /> {{ l.label }}</a>
+                </li>
+              }
+            </ul>
+          </li>
+          @if (adminLinks().length) {
+            <li nz-submenu nzTitle="จัดการระบบ" nzIcon="setting">
+              <ul>
+                @for (l of adminLinks(); track l.path) {
+                  <li nz-menu-item nzMatchRouter>
+                    <a [routerLink]="l.path"><nz-icon [nzType]="l.icon" /> {{ l.label }}</a>
+                  </li>
+                }
+              </ul>
+            </li>
+          }
+        </ul>
+      </div>
+
+      <button
+        nz-button
+        nzType="text"
+        class="user-btn shrink-0"
+        nz-dropdown
+        [nzDropdownMenu]="userMenu"
+        nzPlacement="bottomRight"
+        nzTrigger="click"
+        [attr.aria-label]="'บัญชีผู้ใช้ ' + me.name"
+      >
+        <nz-icon nzType="user" />
+        <span class="max-w-40 truncate max-sm:hidden">{{ me.name }}</span>
+        <nz-icon nzType="down" class="max-sm:hidden" />
+      </button>
+      <nz-dropdown-menu #userMenu="nzDropdownMenu">
+        <ul nz-menu>
+          <li nz-menu-item nzDisabled class="menu-meta">{{ roleLabel[me.role] }}</li>
+          <li nz-menu-divider></li>
+          <li nz-menu-item routerLink="/account"><nz-icon nzType="key" /> บัญชีของฉัน</li>
+          <li nz-menu-divider></li>
+          <li nz-menu-item (click)="logout()"><nz-icon nzType="logout" /> ออกจากระบบ</li>
+        </ul>
+      </nz-dropdown-menu>
+    </nz-header>
+
+    <nz-drawer
+      [nzVisible]="navOpen()"
+      nzPlacement="left"
+      nzWidth="280px"
+      nzTitle="Receipt Reader"
+      [nzBodyStyle]="{ padding: '8px' }"
+      (nzOnClose)="navOpen.set(false)"
+    >
+      <ng-container *nzDrawerContent>
+        <nav class="flex h-full flex-col">
+          <div class="grid gap-0.5">
+            @for (l of mainLinks(); track l.path) {
+              <a
+                class="nav-link"
+                [routerLink]="l.path"
+                routerLinkActive="active"
+                (click)="navOpen.set(false)"
+              >
+                <nz-icon [nzType]="l.icon" /> {{ l.label }}
+              </a>
+            }
+          </div>
+          <div class="mt-3 grid gap-0.5 border-t border-(--line) pt-2">
+            <div class="nav-group px-3 pb-1">สต็อก</div>
+            @for (l of stockLinks; track l.path) {
+              <a
+                class="nav-link"
+                [routerLink]="l.path"
+                routerLinkActive="active"
+                (click)="navOpen.set(false)"
+              >
+                <nz-icon [nzType]="l.icon" /> {{ l.label }}
+              </a>
+            }
+          </div>
+          @if (adminLinks().length) {
+            <div class="mt-3 grid gap-0.5 border-t border-(--line) pt-2">
+              <div class="nav-group px-3 pb-1">จัดการระบบ</div>
+              @for (l of adminLinks(); track l.path) {
+                <a
+                  class="nav-link"
+                  [routerLink]="l.path"
+                  routerLinkActive="active"
+                  (click)="navOpen.set(false)"
+                >
+                  <nz-icon [nzType]="l.icon" /> {{ l.label }}
+                </a>
+              }
+            </div>
+          }
+          <div class="mt-auto grid gap-0.5 border-t border-(--line) pt-2">
+            <a
+              class="nav-link"
+              routerLink="/account"
+              routerLinkActive="active"
+              (click)="navOpen.set(false)"
+            >
+              <nz-icon nzType="key" /> บัญชีของฉัน
+            </a>
+            <button
+              type="button"
+              class="nav-link w-full border-0 bg-transparent text-left"
+              (click)="logout()"
+            >
+              <nz-icon nzType="logout" /> ออกจากระบบ
+            </button>
+          </div>
+        </nav>
+      </ng-container>
+    </nz-drawer>
+
+    @if (store.loaded() && store.companies().length === 0 && !auth.isSuperAdmin()) {
+      <nz-alert
+        nzBanner
+        nzType="info"
+        nzMessage="บัญชีของคุณยังไม่ได้รับสิทธิ์เข้าถึงบริษัทใด — ติดต่อผู้ดูแลระบบให้ผูกบริษัทให้"
+      />
+    } @else if (store.loaded() && store.companies().length === 0 && !onCompaniesPage()) {
+      <nz-alert
+        nzBanner
+        nzType="warning"
+        nzMessage="เริ่มจากสร้างโปรไฟล์บริษัทก่อน — ข้อมูลฝั่งเรา (ชื่อ เลขผู้เสียภาษี สาขา ที่อยู่) จะถูกเติมให้ทุกเอกสารอัตโนมัติ"
+        [nzAction]="createAction"
+      />
+      <ng-template #createAction>
+        <a nz-button nzType="primary" nzSize="small" routerLink="/companies">สร้างบริษัท</a>
+      </ng-template>
+    } @else if (store.current(); as c) {
+      @if (!c.taxId && !onCompaniesPage() && auth.isSuperAdmin()) {
+        <nz-alert
+          nzBanner
+          nzType="warning"
+          [nzMessage]="
+            'โปรไฟล์ “' +
+            c.name +
+            '” ยังไม่มีเลขผู้เสียภาษี — กรอกให้ครบเพื่อให้ระบบตรวจว่าเอกสารเป็นของบริษัทนี้จริง'
+          "
+          [nzAction]="editAction"
+        />
+        <ng-template #editAction>
+          <a nz-button nzSize="small" routerLink="/companies">แก้ไขโปรไฟล์</a>
+        </ng-template>
+      }
+    }
+  }
+
+  <nz-content>
+    <router-outlet />
+  </nz-content>
+</nz-layout>

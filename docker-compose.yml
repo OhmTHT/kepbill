@@ -1,0 +1,81 @@
+# Full stack: Postgres + Ollama (GPU) + .NET API + Angular (nginx).
+#   docker compose up -d --build
+#   docker compose exec ollama ollama pull qwen2.5vl:7b
+#   open http://localhost:8080
+#
+# Already running Ollama natively on Windows/macOS? Start without the ollama service:
+#   docker compose up -d --build db api web
+# and set OLLAMA_BASE_URL=http://host.docker.internal:11434 in .env
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: receipts
+      POSTGRES_USER: receipts
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-receipts}
+    restart: unless-stopped
+    # Bound to 127.0.0.1 so only this machine can reach it (the public entry point is the tunnel in front of web).
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U receipts -d receipts"]
+      interval: 5s
+      retries: 10
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: 15m
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  api:
+    build: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ConnectionStrings__Default: Host=db;Port=5432;Database=receipts;Username=receipts;Password=${POSTGRES_PASSWORD:-receipts}
+      Extraction__OllamaBaseUrl: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      Extraction__Mode: ${EXTRACTION_MODE:-Vision}
+      Extraction__VisionModel: ${VISION_MODEL:-qwen2.5vl:7b}
+      Extraction__Think: ${EXTRACTION_THINK:-false}
+      Extraction__OcrModel: ${OCR_MODEL:-qwen2.5vl:7b}
+      Extraction__TextModel: ${TEXT_MODEL:-qwen2.5:7b}
+      # product code suggestions; empty = the vision model
+      Extraction__AssistModel: ${ASSIST_MODEL:-}
+      Cors__Origins__0: http://localhost:8080
+      DataProtection__KeysPath: /data/keys
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - uploads:/data
+    ports:
+      - "127.0.0.1:5080:8080"
+
+  web:
+    build: ./frontend
+    depends_on:
+      - api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80"
+
+volumes:
+  pgdata:
+  ollama:
+  uploads:

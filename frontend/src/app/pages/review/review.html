@@ -1,0 +1,591 @@
+@if (loadError(); as err) {
+  <div class="grid place-items-center gap-4 px-4 py-20">
+    <nz-alert nzType="error" nzShowIcon [nzMessage]="err" />
+    <a nz-button routerLink="/receipts">กลับไปหน้ารายการ</a>
+  </div>
+} @else if (receipt(); as r) {
+  <div class="grid h-[calc(100vh-60px)] gap-4 px-5 py-4 max-[1000px]:h-auto max-[1000px]:grid-cols-1 max-[1000px]:px-4 max-[1000px]:py-3 max-sm:gap-2 max-sm:p-0"
+       [class]="r.fileUrl ? 'grid-cols-2' : 'grid-cols-[minmax(0,900px)] justify-center'">
+    <!-- phones: no outer padding, cards edge to edge -->
+    <!-- ============ image (none for a manual entry) ============ -->
+    @if (r.fileUrl) {
+      <nz-card class="min-h-0 overflow-hidden max-[1000px]:h-[60vh] max-sm:rounded-none max-sm:border-x-0" [nzBodyStyle]="{ padding: '0', height: '100%' }">
+        <div class="flex h-full flex-col">
+          <div class="viewer-bar flex items-center gap-2 px-2 py-1.5">
+            <a nz-button nzType="text" routerLink="/receipts" [queryParams]="{ direction: r.direction }">
+              <nz-icon nzType="left" /> รายการ
+            </a>
+            <span class="filename min-w-0 flex-1 truncate" [title]="r.originalFileName">{{ r.originalFileName }}</span>
+            <div class="zoom flex items-center gap-0.5">
+              @if (!isPdf()) {
+                <button nz-button nzType="text" (click)="zoomBy(1 / 1.25)" nz-tooltip nzTooltipTitle="ซูมออก">
+                  <nz-icon nzType="zoom-out" />
+                </button>
+                <span class="num">{{ zoom() * 100 | number: '1.0-0' }}%</span>
+                <button nz-button nzType="text" (click)="zoomBy(1.25)" nz-tooltip nzTooltipTitle="ซูมเข้า">
+                  <nz-icon nzType="zoom-in" />
+                </button>
+                <button nz-button nzType="text" (click)="rotate()" nz-tooltip nzTooltipTitle="หมุน">
+                  <nz-icon nzType="rotate-right" />
+                </button>
+              }
+              <a nz-button nzType="text" [href]="r.fileUrl" target="_blank" nz-tooltip nzTooltipTitle="เปิดไฟล์ต้นฉบับ">
+                <nz-icon nzType="expand" />
+              </a>
+            </div>
+          </div>
+          @if (isPdf()) {
+            <div class="canvas flex min-h-0 flex-1 items-start justify-center overflow-auto p-3">
+              <iframe [src]="pdfUrl()" [title]="r.originalFileName"></iframe>
+            </div>
+            <p class="hint muted m-0 px-2.5 py-1">ใช้ปุ่มของตัวแสดง PDF เพื่อซูม/เปลี่ยนหน้า</p>
+          } @else {
+            <div class="canvas flex min-h-0 flex-1 items-start justify-center overflow-auto p-3" (wheel)="onWheel($event)">
+              <img
+                [src]="r.fileUrl"
+                [alt]="r.originalFileName"
+                [style.width.%]="zoom() * 100"
+                [style.transform]="'rotate(' + rotation() + 'deg)'"
+              />
+            </div>
+            <p class="hint muted m-0 px-2.5 py-1">Ctrl + scroll เพื่อซูม</p>
+          }
+        </div>
+      </nz-card>
+    }
+
+    <!-- ============ data ============ -->
+    <nz-card class="min-h-0 overflow-hidden max-[1000px]:overflow-visible max-sm:rounded-none max-sm:border-x-0" [nzBodyStyle]="{ padding: '0', height: '100%' }">
+      <div class="flex h-full flex-col">
+        <header class="panel-head px-4 pt-3 pb-2">
+          <div class="flex flex-wrap items-center gap-1.5">
+            @if (!r.fileUrl) {
+              <a nz-button nzType="text" routerLink="/receipts" [queryParams]="{ direction: r.direction }">
+                <nz-icon nzType="left" /> รายการ
+              </a>
+              <nz-tag nzColor="purple"><nz-icon nzType="edit" /> บันทึกเอง</nz-tag>
+            }
+            <nz-tag [nzColor]="dirColor[r.direction]">{{ dirLabel[r.direction] }}</nz-tag>
+            @if (isDraft()) {
+              <nz-tag nzColor="orange" nz-tooltip nzTooltipTitle="ยังไม่อยู่ในระบบ — กดบันทึกเพื่อเก็บเอกสารนี้">ยังไม่บันทึก</nz-tag>
+            } @else {
+              <nz-tag [nzColor]="statusColor[r.status]">{{ statusLabel[r.status] }}</nz-tag>
+            }
+            @if (r.status === 'Approved' && r.paymentStatus !== 'NotApplicable') {
+              <span class="pay" [class]="r.paymentStatus">{{ payLabel[r.direction][r.paymentStatus] }}</span>
+            }
+            @if (r.periodClosed) {
+              <nz-tag><nz-icon nzType="lock" /> งวด {{ periodLabel(r.period) }} ปิดแล้ว</nz-tag>
+            }
+            @if (r.vendorName) {
+              <nz-tag nzColor="cyan" nz-tooltip nzTooltipTitle="ผู้ออกเอกสารที่ระบบรู้จัก — ใช้ใบเก่าเป็นตัวอย่างช่วยอ่าน">
+                รู้จัก: {{ r.vendorName }}
+              </nz-tag>
+            }
+            @if (auth.isSuperAdmin() && isApproved()) {
+              <button nz-button nzType="text" nzShape="circle" class="example-toggle ml-auto" [class.on]="r.examplePinned"
+                      [disabled]="busy()" (click)="toggleExample()" [attr.aria-pressed]="r.examplePinned"
+                      nz-tooltip [nzTooltipTitle]="r.examplePinned
+                        ? 'ปักหมุดเป็นตัวอย่าง Training AI อยู่ — กดเพื่อเลิก'
+                        : 'ปักหมุดใบนี้เป็นตัวอย่าง Training AI ของผู้ออกรายนี้'"
+                      aria-label="ตัวอย่าง Training AI">
+                <nz-icon nzType="robot" [nzTheme]="r.examplePinned ? 'fill' : 'outline'" />
+              </button>
+            }
+          </div>
+          <p class="meta muted mt-1 mb-0">
+            {{ r.companyName }}
+            @if (r.modelName) {
+              · {{ r.extractorName }} · {{ r.modelName }}
+            }
+            @if (r.processedAt) {
+              · อ่านเมื่อ {{ r.processedAt | date: 'dd/MM HH:mm' }}
+            }
+            @if (r.approvedAt) {
+              · อนุมัติ {{ r.approvedAt | date: 'dd/MM/yyyy HH:mm' }}
+            }
+          </p>
+        </header>
+
+        <div class="min-h-0 flex-1 overflow-auto px-4 pt-3 pb-4 max-[1000px]:overflow-visible [&>nz-alert]:mb-2.5 [&>nz-alert]:block">
+          @if (isWaiting()) {
+            <nz-alert
+              nzType="info"
+              [nzIcon]="spin"
+              nzShowIcon
+              [nzMessage]="r.status === 'Pending' ? 'รอคิว' : 'กำลังอ่านเอกสาร…'"
+              nzDescription="โมเดลบนเครื่องกำลังทำงาน หน้านี้จะอัปเดตเองเมื่อเสร็จ"
+            />
+            <ng-template #spin><nz-spin nzSimple nzSize="small" /></ng-template>
+          }
+
+          @if (isFailed()) {
+            <nz-alert nzType="error" nzShowIcon nzMessage="อ่านไม่สำเร็จ" [nzDescription]="r.processingError ?? ''" [nzAction]="retry" />
+            <ng-template #retry><button nz-button nzSize="small" (click)="reprocess()">ลองใหม่</button></ng-template>
+          }
+
+          @if (!isWaiting() && issues().length) {
+            <section class="issues mb-3" [class.has-error]="errors().length">
+              <div class="issues-head flex items-center gap-2 px-3 py-2">
+                <nz-icon class="head-icon" [nzType]="errors().length ? 'close-circle' : 'exclamation-circle'" nzTheme="fill" />
+                <span class="flex-1">
+                  @if (errors().length) {
+                    <b>{{ errors().length }} ข้อผิดพลาด</b>
+                  }
+                  @if (errors().length && warnings().length) {
+                    ·
+                  }
+                  @if (warnings().length) {
+                    <span>{{ warnings().length }} คำเตือน</span>
+                  }
+                </span>
+                <span class="muted hint-text max-sm:hidden">คลิกรายการเพื่อไปที่ช่อง</span>
+              </div>
+              <ul class="issue-list m-0 list-none p-0">
+                @for (i of visibleIssues(); track $index) {
+                  <li class="flex cursor-pointer items-start gap-2.5 px-3 py-1.5" [class]="i.severity" (click)="focusField(i.field)">
+                    <span class="dot" aria-hidden="true"></span>
+                    <span class="flex-1">{{ i.message }}</span>
+                  </li>
+                }
+              </ul>
+              @if (sortedIssues().length > issuePreview) {
+                <button type="button" class="issues-more" (click)="issuesExpanded.set(!issuesExpanded())">
+                  {{ issuesExpanded() ? 'ย่อ' : 'แสดงอีก ' + (sortedIssues().length - issuePreview) + ' รายการ' }}
+                  <nz-icon [nzType]="issuesExpanded() ? 'up' : 'down'" />
+                </button>
+              }
+            </section>
+          } @else if (!isWaiting() && !isFailed()) {
+            <nz-alert nzType="success" nzShowIcon [nzMessage]="auth.canApprove() ? 'ตรวจสอบแล้วไม่พบปัญหา — เทียบกับรูปอีกครั้งแล้วกดอนุมัติ' : 'ตรวจสอบแล้วไม่พบปัญหา — เทียบกับรูปอีกครั้งแล้วกดบันทึก รอผู้ทำบัญชีอนุมัติ'" />
+          }
+
+          <form nz-form nzLayout="vertical" class="[&_nz-form-item]:mb-3" [formGroup]="form" (ngSubmit)="save()">
+            <!-- document -->
+            <nz-divider nzOrientation="left" nzText="เอกสาร" />
+            <div nz-row [nzGutter]="12">
+              <nz-form-item nz-col [nzXs]="24" [nzSm]="8">
+                <nz-form-label>ประเภทรายการ</nz-form-label>
+                <nz-form-control>
+                  <nz-select formControlName="direction">
+                    <nz-option nzValue="Purchase" [nzLabel]="dirLabel.Purchase"></nz-option>
+                    <nz-option nzValue="Sale" [nzLabel]="dirLabel.Sale"></nz-option>
+                  </nz-select>
+                </nz-form-control>
+              </nz-form-item>
+              <nz-form-item nz-col [nzXs]="24" [nzSm]="16">
+                <nz-form-label>ประเภท</nz-form-label>
+                <nz-form-control [nzValidateStatus]="statusOf('documentType')">
+                  <nz-select formControlName="documentType" data-field="documentType">
+                    @for (d of docTypes; track d[0]) {
+                      <nz-option [nzValue]="d[0]" [nzLabel]="d[1]"></nz-option>
+                    }
+                  </nz-select>
+                </nz-form-control>
+              </nz-form-item>
+              <nz-form-item nz-col [nzXs]="24" [nzSm]="12">
+                <nz-form-label>เลขที่เอกสาร</nz-form-label>
+                <nz-form-control [nzValidateStatus]="statusOf('documentNumber')">
+                  <input nz-input formControlName="documentNumber" data-field="documentNumber" />
+                </nz-form-control>
+              </nz-form-item>
+              <nz-form-item nz-col [nzXs]="24" [nzSm]="12">
+                <nz-form-label>วันที่</nz-form-label>
+                <nz-form-control [nzValidateStatus]="statusOf('issueDate')">
+                  <nz-date-picker class="w-full" formControlName="issueDate" nzFormat="dd/MM/yyyy" data-field="issueDate" />
+                </nz-form-control>
+              </nz-form-item>
+              <nz-form-item nz-col [nzXs]="24" [nzSm]="12">
+                <nz-form-label>งวดบัญชี</nz-form-label>
+                <nz-form-control [nzValidateStatus]="statusOf('period')">
+                  <nz-date-picker class="w-full" nzMode="month" nzFormat="MM/yyyy" formControlName="period" data-field="period" />
+                </nz-form-control>
+              </nz-form-item>
+              <nz-form-item nz-col [nzXs]="24" [nzSm]="12">
+                <nz-form-label>ครบกำหนดชำระ</nz-form-label>
+                <nz-form-control [nzValidateStatus]="statusOf('dueDate')">
+                  <nz-date-picker class="w-full" formControlName="dueDate" nzFormat="dd/MM/yyyy" data-field="dueDate" />
+                </nz-form-control>
+              </nz-form-item>
+              @if (isNote()) {
+                <nz-form-item nz-col [nzSpan]="24">
+                  <nz-form-label>อ้างอิงใบกำกับภาษีเลขที่</nz-form-label>
+                  <nz-form-control [nzValidateStatus]="statusOf('referenceDocumentNumber')" [nzExtra]="refInfo">
+                    <input nz-input formControlName="referenceDocumentNumber" data-field="referenceDocumentNumber" />
+                  </nz-form-control>
+                  <ng-template #refInfo>
+                    @if (r.reference; as ref) {
+                      เชื่อมกับ <a [routerLink]="['/receipts', ref.id]">{{ ref.documentNumber }}</a>
+                      ({{ ref.issueDate | date: 'dd/MM/yyyy' }} · {{ ref.total | number: '1.2-2' }}) —
+                      ยอดค้างของใบนั้นจะถูก{{ docType() === 'CreditNote' ? 'ลด' : 'เพิ่ม' }}ตามใบนี้
+                    } @else if (r.referenceDocumentNumber) {
+                      ยังไม่พบใบนี้ในระบบ (ฝั่งและคู่ค้าเดียวกัน) — บันทึกได้ แต่ยอดค้างของใบเดิมจะไม่ถูกปรับ
+                    }
+                  </ng-template>
+                </nz-form-item>
+              }
+              <nz-form-item nz-col [nzSpan]="24">
+                <nz-form-label>บัญชี{{ direction() === 'Purchase' ? 'ค่าใช้จ่าย' : 'รายได้' }}</nz-form-label>
+                <nz-form-control>
+                  <nz-select formControlName="accountId" nzShowSearch nzAllowClear [nzPlaceHolder]="'ค่าเริ่มต้น (' + defaultAccountName() + ')'">
+                    @for (a of accountOptions(); track a.id) {
+                      <nz-option [nzValue]="a.id" [nzLabel]="a.code + ' · ' + a.name"></nz-option>
+                    }
+                  </nz-select>
+                </nz-form-control>
+              </nz-form-item>
+            </div>
+
+            <!-- counterparty -->
+            <nz-divider nzOrientation="left" [nzText]="counterpartyLabel[direction()]" />
+            <div nz-row [nzGutter]="12">
+              <nz-form-item nz-col [nzSpan]="24">
+                <nz-form-label>ชื่อ</nz-form-label>
+                <nz-form-control [nzValidateStatus]="statusOf(cpSide() + 'Name')">
+                  <input nz-input formControlName="cpName" [attr.data-field]="cpSide() + 'Name'" />
+                </nz-form-control>
+              </nz-form-item>
+              <nz-form-item nz-col [nzXs]="24" [nzSm]="16">
+                <nz-form-label>เลขผู้เสียภาษี (13 หลัก)</nz-form-label>
+                <nz-form-control [nzValidateStatus]="statusOf(cpSide() + 'TaxId')">
+                  <input nz-input class="num" inputmode="numeric" formControlName="cpTaxId" [attr.data-field]="cpSide() + 'TaxId'" />
+                </nz-form-control>
+              </nz-form-item>
+              <nz-form-item nz-col [nzXs]="24" [nzSm]="8">
+                <nz-form-label>สาขา</nz-form-label>
+                <nz-form-control>
+                  <input nz-input class="num" formControlName="cpBranch" placeholder="00000" />
+                </nz-form-control>
+              </nz-form-item>
+              <nz-form-item nz-col [nzSpan]="24">
+                <nz-form-label>ที่อยู่</nz-form-label>
+                <nz-form-control>
+                  <input nz-input formControlName="cpAddress" />
+                </nz-form-control>
+              </nz-form-item>
+            </div>
+
+            <!-- our side -->
+            @if (ourSide(); as o) {
+              <nz-divider nzOrientation="left" [nzText]="direction() === 'Purchase' ? 'ผู้ซื้อ' : 'ผู้ขาย'" />
+              <nz-descriptions nzBordered nzSize="small" [nzColumn]="1">
+                <nz-descriptions-item nzTitle="ชื่อ">{{ o.name ?? '—' }}</nz-descriptions-item>
+                <nz-descriptions-item nzTitle="เลขผู้เสียภาษี">
+                  <span class="num">{{ o.taxId ?? '—' }}</span> · สาขา {{ o.branch ?? '—' }}
+                </nz-descriptions-item>
+                <nz-descriptions-item nzTitle="ที่อยู่">{{ o.address ?? '—' }}</nz-descriptions-item>
+                @if (r.ownTaxIdOnDocument) {
+                  <nz-descriptions-item nzTitle="บนเอกสาร">
+                    <span class="num" [class.mismatch]="r.ownTaxIdOnDocument !== o.taxId">{{ r.ownTaxIdOnDocument }}</span>
+                  </nz-descriptions-item>
+                }
+              </nz-descriptions>
+              <p class="note muted mt-1.5 mb-0">
+                แก้ได้ที่หน้า <a routerLink="/companies">บริษัท</a> — ถ้าเปลี่ยนรายจ่าย/รายรับ กดบันทึกแล้วข้อมูลฝั่งเราจะสลับให้เอง
+              </p>
+            }
+
+            <!-- lines -->
+            <nz-divider nzOrientation="left" [nzText]="'รายการ (' + lines.length + ')'" />
+            <!-- sized by the card, not the screen: the card is half the screen next to a file -->
+            <div class="@container grid gap-1.5 outline-none" formArrayName="lineItems" data-field="lineItems" tabindex="-1">
+              <div class="line-head grid grid-cols-[minmax(0,1fr)_76px_108px_92px_118px_36px] items-center gap-1.5 @max-[640px]:grid-cols-[minmax(0,1fr)_60px_88px_76px_96px_32px] @max-[520px]:hidden">
+                <span>รายละเอียด</span><span class="text-right">จำนวน</span><span class="text-right">ราคา/หน่วย</span><span class="text-right">ส่วนลด</span
+                ><span class="text-right">จำนวนเงิน</span><span></span>
+              </div>
+              @for (g of lines.controls; track g; let i = $index) {
+                <div class="line-row grid grid-cols-[minmax(0,1fr)_76px_108px_92px_118px_36px] items-center gap-1.5 @max-[640px]:grid-cols-[minmax(0,1fr)_60px_88px_76px_96px_32px] @max-[520px]:grid-cols-[repeat(4,minmax(0,1fr))_32px] @max-[520px]:gap-y-1 [&_nz-input-number]:w-full" [formGroupName]="i">
+                  <input nz-input class="@max-[520px]:col-span-4" formControlName="description" aria-label="รายละเอียด" placeholder="รายละเอียด" />
+                  <!-- narrow card: numbers wrap to their own row, so label them -->
+                  <span class="mini-label @min-[520px]:hidden">จำนวน</span><span class="mini-label @min-[520px]:hidden">ราคา/หน่วย</span
+                  ><span class="mini-label @min-[520px]:hidden">ส่วนลด</span><span class="mini-label @min-[520px]:hidden">จำนวนเงิน</span>
+                  <nz-input-number [nzFormatter]="qty" formControlName="quantity" aria-label="จำนวน" />
+                  <nz-input-number [nzFormatter]="money" formControlName="unitPrice" [nzPrecision]="2" aria-label="ราคาต่อหน่วย" (nzBlur)="fillAmount(i)" />
+                  <nz-input-number [nzFormatter]="money"
+                    formControlName="discount"
+                    [nzPrecision]="2"
+                    aria-label="ส่วนลด"
+                    (nzBlur)="fillAmount(i)"
+                    [attr.data-field]="'lineItems.' + i + '.discount'"
+                    [class.is-error]="issueFor('lineItems.' + i + '.discount')"
+                  />
+                  <nz-input-number [nzFormatter]="money"
+                    formControlName="amount"
+                    [nzPrecision]="2"
+                    aria-label="จำนวนเงิน"
+                    [attr.data-field]="'lineItems.' + i + '.amount'"
+                    [class.is-warn]="issueFor('lineItems.' + i + '.amount')"
+                  />
+                  <button nz-button nzType="text" nzDanger type="button" class="@max-[520px]:col-start-5 @max-[520px]:row-span-3 @max-[520px]:row-start-1 @max-[520px]:self-start" (click)="removeLine(i)" [disabled]="form.disabled" nz-tooltip nzTooltipTitle="ลบบรรทัด">
+                    <nz-icon nzType="delete" />
+                  </button>
+                </div>
+              }
+              <div class="lines-foot mt-1 flex flex-wrap items-center justify-between gap-2">
+                <button nz-button nzType="dashed" type="button" (click)="addLine()" [disabled]="form.disabled">
+                  <nz-icon nzType="plus" /> เพิ่มบรรทัด
+                </button>
+                @if (lineSum() != null) {
+                  <span class="muted">
+                    รวมรายการ <span class="num">{{ lineSum() | number: '1.2-2' }}</span>
+                    @if (!form.disabled) {
+                      <a (click)="useLineSumAsSubtotal()">ใช้เป็นยอดก่อนภาษี</a>
+                    }
+                  </span>
+                }
+              </div>
+            </div>
+
+            <!-- totals -->
+            <nz-divider nzOrientation="left" nzText="ยอดเงิน" />
+            <div class="totals ml-auto grid max-w-125 grid-cols-[1fr_200px] items-center gap-x-3 gap-y-2 max-[1000px]:grid-cols-[1fr_150px] [&_nz-input-number]:w-full">
+              <label for="subtotal">ยอดก่อนภาษี / รวมสินค้า</label>
+              <nz-input-number [nzFormatter]="money" id="subtotal" formControlName="subtotal" [nzPrecision]="2" data-field="subtotal" />
+
+              <label for="discount">ส่วนลดท้ายบิล</label>
+              <nz-input-number [nzFormatter]="money" id="discount" formControlName="discount" [nzPrecision]="2" data-field="discount" />
+
+              <label for="vatAmount">VAT 7%</label>
+              <nz-input-number [nzFormatter]="money" id="vatAmount" formControlName="vatAmount" [nzPrecision]="2" data-field="vatAmount"
+                               [class.is-warn]="issueFor('vatAmount')" />
+              <!-- the hint gets its own grid row so the label stays level with the input -->
+              @if (vatHint() != null) {
+                <span></span>
+                <div class="hint muted -mt-1.5">7/107 ของยอดรวม = <span class="num">{{ vatHint() | number: '1.2-2' }}</span></div>
+              }
+
+              <span></span>
+              <label nz-checkbox formControlName="vatIncluded">ราคารวม VAT แล้ว</label>
+
+              <label for="total" class="strong">ยอดรวมสุทธิ</label>
+              <nz-input-number [nzFormatter]="money" id="total" class="total-input" formControlName="total" [nzPrecision]="2" data-field="total"
+                               [class.is-error]="issueFor('total')?.severity === 'Error'" />
+
+              <!-- withholding tax: on the amount before VAT; notes keep it on the invoice they adjust -->
+              @if (!isNote()) {
+                <div class="flex items-center justify-end gap-2">
+                  <label for="whtAmount">หัก ณ ที่จ่าย</label>
+                  <!-- nzOptionHeightPx a little above the real row height: no scrollbar for six options -->
+                  <nz-select class="w-23 shrink-0" formControlName="whtRate" nzAllowClear nzPlaceHolder="ไม่หัก"
+                             [nzDropdownMatchSelectWidth]="false" [nzOptionHeightPx]="36" aria-label="อัตราหัก ณ ที่จ่าย">
+                    @for (w of whtRates; track w.rate) {
+                      <nz-option nzCustomContent [nzValue]="w.rate" [nzLabel]="w.rate + '%'">
+                        <span class="flex items-baseline gap-3">
+                          <b class="num w-9 shrink-0 text-right">{{ w.rate }}%</b>
+                          <span class="muted">{{ w.label }}</span>
+                        </span>
+                      </nz-option>
+                    }
+                  </nz-select>
+                </div>
+                <nz-input-number [nzFormatter]="money" id="whtAmount" formControlName="whtAmount" [nzPrecision]="2" [nzMin]="0" data-field="whtAmount"
+                                 nzPlaceHolder="0.00" [class.is-warn]="issueFor('whtAmount')" />
+                @if (netPayable() != null) {
+                  <label class="strong">{{ direction() === 'Purchase' ? 'ยอดจ่ายจริง' : 'ยอดรับจริง' }}</label>
+                  <span class="num strong net-payable">{{ netPayable() | number: '1.2-2' }}</span>
+                }
+              }
+            </div>
+            <div nz-row [nzGutter]="12" class="mt-3">
+              <nz-form-item nz-col [nzXs]="24" [nzSm]="16">
+                <nz-form-label>วิธีชำระ</nz-form-label>
+                <nz-form-control>
+                  <input nz-input formControlName="paymentMethod" placeholder="เงินสด / บัตร / โอน" />
+                </nz-form-control>
+              </nz-form-item>
+              <nz-form-item nz-col [nzXs]="24" [nzSm]="8">
+                <nz-form-label>สกุลเงิน</nz-form-label>
+                <nz-form-control>
+                  <input nz-input formControlName="currency" />
+                </nz-form-control>
+              </nz-form-item>
+              <nz-form-item nz-col [nzSpan]="24">
+                <nz-form-label>หมายเหตุ</nz-form-label>
+                <nz-form-control>
+                  <textarea nz-input formControlName="notes" rows="2"></textarea>
+                </nz-form-control>
+              </nz-form-item>
+            </div>
+          </form>
+
+          <!-- payments -->
+          @if (!isDraft() && !isNote() && r.total) {
+            <nz-divider nzOrientation="left" [nzText]="r.direction === 'Purchase' ? 'การจ่ายเงิน' : 'การรับเงิน'" />
+            <div class="paysum flex flex-wrap items-baseline gap-x-4.5 gap-y-1">
+              <span class="pay" [class]="r.paymentStatus">{{ payLabel[r.direction][r.paymentStatus] }}</span>
+              <span>ยอดเอกสาร <b class="num">{{ r.total | number: '1.2-2' }}</b></span>
+              @if (r.adjustmentTotal) {
+                <span>ลด/เพิ่มหนี้ <b class="num">{{ r.adjustmentTotal | number: '1.2-2' }}</b></span>
+              }
+              @if (r.whtAmount) {
+                <span>หัก ณ ที่จ่าย <b class="num">{{ r.whtAmount | number: '1.2-2' }}</b></span>
+              }
+              <span>ชำระแล้ว <b class="num">{{ r.paid | number: '1.2-2' }}</b></span>
+              <span>คงเหลือ <b class="num">{{ r.outstanding | number: '1.2-2' }}</b></span>
+              @if (r.dueDate) {
+                <span>ครบกำหนด <b class="num">{{ r.dueDate | date: 'dd/MM/yyyy' }}</b></span>
+              }
+            </div>
+            @if (r.adjustments.length) {
+              <p class="note mt-1.5 mb-0">
+                ใบลด/เพิ่มหนี้ที่อ้างถึงใบนี้:
+                @for (a of r.adjustments; track a.id) {
+                  <a [routerLink]="['/receipts', a.id]">{{ a.documentNumber ?? 'ไม่มีเลขที่' }}</a>&nbsp;
+                }
+              </p>
+            }
+            @if (r.payments.length) {
+              <nz-table #payTable class="mt-3" nzSize="small" [nzData]="r.payments" [nzFrontPagination]="false" [nzShowPagination]="false">
+                <thead>
+                  <tr>
+                    <th>วันที่</th>
+                    <th>ผ่านบัญชี</th>
+                    <th class="max-md:hidden">หมายเหตุ</th>
+                    <th nzAlign="right">จำนวนเงิน</th>
+                    <th nzWidth="48px"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (p of payTable.data; track p.id) {
+                    <tr>
+                      <td class="num">{{ p.date | date: 'dd/MM/yyyy' }}</td>
+                      <td>{{ p.accountName }}</td>
+                      <td class="muted max-md:hidden">{{ p.note }}</td>
+                      <td class="num" nzAlign="right">
+                        {{ p.amount | number: '1.2-2' }}
+                        @if (p.whtAmount) {
+                          <div class="muted text-xs">+ หัก ณ ที่จ่าย {{ p.whtAmount | number: '1.2-2' }}</div>
+                        }
+                      </td>
+                      <td>
+                        @if (auth.canApprove()) {
+                          <button nz-button nzType="text" nzDanger nzSize="small" (click)="askDeletePayment(p)">
+                            <nz-icon nzType="delete" />
+                          </button>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </nz-table>
+            }
+            @if (r.outstanding > 0 && auth.canApprove()) {
+              <form class="mt-3 flex flex-wrap items-center gap-2" [formGroup]="paymentForm" (ngSubmit)="addPayment()">
+                <nz-date-picker class="w-37.5" formControlName="date" nzFormat="dd/MM/yyyy" [nzAllowClear]="false"
+                                [nzPlaceHolder]="r.direction === 'Purchase' ? 'วันที่จ่าย' : 'วันที่รับ'" />
+                <nz-input-number [nzFormatter]="money" class="w-35" formControlName="amount" [nzPrecision]="2" [nzMin]="0" nzPlaceHolder="จำนวนเงิน"
+                                 aria-label="จำนวนเงิน" />
+                @if (r.whtAmount) {
+                  <label class="flex items-center gap-1.5">
+                    <span class="muted whitespace-nowrap">หัก ณ ที่จ่าย</span>
+                    <nz-input-number [nzFormatter]="money" class="w-30" formControlName="whtAmount" [nzPrecision]="2" [nzMin]="0" nzPlaceHolder="0.00" />
+                  </label>
+                }
+                <nz-select class="w-42.5" formControlName="accountId" nzPlaceHolder="ผ่านบัญชี">
+                  @for (a of store.moneyAccounts(); track a.id) {
+                    <nz-option [nzValue]="a.id" [nzLabel]="a.name"></nz-option>
+                  }
+                </nz-select>
+                <input nz-input class="min-w-45 flex-1" formControlName="note" placeholder="หมายเหตุ เช่น เลขที่เช็ค / อ้างอิงการโอน" />
+                <button nz-button nzType="primary" nzGhost type="submit" [nzLoading]="busy()">
+                  <nz-icon nzType="plus" /> บันทึก{{ r.direction === 'Purchase' ? 'จ่าย' : 'รับ' }}เงิน
+                </button>
+              </form>
+              @if (r.status !== 'Approved') {
+                <p class="note muted mt-1.5 mb-0">บันทึกได้ก่อนอนุมัติ แต่จะลงสมุดรายวันเมื่ออนุมัติเอกสารแล้ว</p>
+              }
+            }
+          }
+
+          <!-- journal -->
+          @if (!isDraft() && r.journal.length) {
+            <nz-divider nzOrientation="left" [nzText]="r.status === 'Approved' ? 'รายการบัญชี (Dr/Cr)' : 'รายการบัญชี (Dr/Cr) — ตัวอย่าง จะลงบัญชีเมื่ออนุมัติ'" />
+            @for (e of r.journal; track $index) {
+              <nz-table #jt class="mt-2.5 block" nzSize="small" nzBordered [nzData]="e.lines" [nzFrontPagination]="false" [nzShowPagination]="false" [nzTitle]="jeTitle">
+                <thead>
+                  <tr>
+                    <th>บัญชี</th>
+                    <th nzAlign="right" nzWidth="120px">เดบิต</th>
+                    <th nzAlign="right" nzWidth="120px">เครดิต</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (l of jt.data; track $index) {
+                    <tr>
+                      <td [class.indent]="l.credit > 0"><span class="num muted">{{ l.accountCode }}</span> {{ l.accountName }}</td>
+                      <td class="num" nzAlign="right">{{ l.debit ? (l.debit | number: '1.2-2') : '' }}</td>
+                      <td class="num" nzAlign="right">{{ l.credit ? (l.credit | number: '1.2-2') : '' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </nz-table>
+              <ng-template #jeTitle>
+                <span class="num">{{ e.date | date: 'dd/MM/yyyy' }}</span> · {{ e.description }}
+                <span class="muted"> · งวด {{ periodLabel(e.period) }}</span>
+              </ng-template>
+            }
+          }
+
+          <!-- model output (debug): admins only -->
+          @if (r.fileUrl && auth.isManager()) {
+            <nz-divider />
+            <button nz-button nzType="link" (click)="showDebug.set(!showDebug())">
+              <nz-icon nzType="code" /> {{ showDebug() ? 'ซ่อน' : 'ดู' }}สิ่งที่โมเดลอ่านได้ (debug)
+            </button>
+            @if (showDebug()) {
+              @if (r.ocrText) {
+                <h4>OCR text</h4>
+                <pre>{{ r.ocrText }}</pre>
+              }
+              <h4>Raw JSON</h4>
+              <pre>{{ prettyJson(r.rawExtraction) | json }}</pre>
+            }
+          }
+        </div>
+
+        <!-- narrow card (review.scss): secondary actions shrink to icons, save/approve share the rest of the row -->
+        <footer class="actions flex items-center gap-2 px-4 py-2.5 max-[1000px]:sticky max-[1000px]:bottom-0">
+          @if (isApproved()) {
+            @if (auth.canApprove()) {
+              <button nz-button (click)="unapprove()" [disabled]="busy() || r.periodClosed">
+                <nz-icon nzType="unlock" /> ยกเลิกอนุมัติ
+              </button>
+            }
+            <span class="flex-1"></span>
+            <button nz-button nzType="primary" (click)="goNext()" nz-tooltip nzTooltipTitle="Ctrl+Enter">ใบถัดไป <nz-icon nzType="right" /></button>
+          } @else {
+            @if (isDraft()) {
+              <button nz-button nzType="text" [disabled]="busy()" (click)="discardDraft()" aria-label="ยกเลิก">
+                <nz-icon nzType="close" /><span class="lbl">ยกเลิก</span>
+              </button>
+            } @else {
+              <button nz-button nzType="text" nzDanger [disabled]="busy() || isWaiting()" (click)="askRemove()" aria-label="ลบ">
+                <nz-icon nzType="delete" /><span class="lbl">ลบ</span>
+              </button>
+            }
+            @if (r.fileUrl) {
+              <button nz-button nzType="text" [disabled]="busy() || isWaiting()" (click)="askReprocess()" aria-label="อ่านใหม่">
+                <nz-icon nzType="reload" /><span class="lbl">อ่านใหม่</span>
+              </button>
+            }
+            <span class="spacer flex-1"></span>
+            <div class="primary-actions flex gap-2">
+              <button nz-button (click)="save()" [disabled]="busy() || isWaiting() || (form.pristine && !isDraft())" nz-tooltip nzTooltipTitle="Ctrl+S">
+                <nz-icon nzType="save" /> บันทึก
+              </button>
+              <!-- users (ผู้บันทึกบัญชี) save only; approving is for approvers and up -->
+              @if (auth.canApprove()) {
+                <button nz-button nzType="primary" (click)="approve()" [nzLoading]="busy()" [disabled]="isWaiting() || isFailed()"
+                        nz-tooltip nzTooltipTitle="Ctrl+Enter">
+                  <nz-icon nzType="check" /> {{ form.dirty || isDraft() ? 'บันทึก & อนุมัติ' : 'อนุมัติ' }}
+                </button>
+              }
+            </div>
+          }
+        </footer>
+      </div>
+    </nz-card>
+  </div>
+} @else {
+  <div class="grid place-items-center gap-4 px-4 py-20"><nz-spin nzSimple nzTip="กำลังโหลด…" /></div>
+}

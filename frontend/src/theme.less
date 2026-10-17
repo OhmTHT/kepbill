@@ -1,0 +1,37 @@
+// Ant Design (ng-zorro) theme. Less variables are lazily evaluated, so overriding them after the import
+// still applies to every component.
+@import '../node_modules/ng-zorro-antd/ng-zorro-antd.less';
+
+@primary-color: #1a7a56;
+@success-color: #1a7a56;
+@info-color: #23609b;
+@warning-color: #c27c00;
+@error-color: #c4321f;
+
+@font-family: 'IBM Plex Sans Thai', 'IBM Plex Sans', -apple-system, 'Segoe UI', sans-serif;
+@code-family: 'IBM Plex Mono', ui-monospace, monospace;
+@font-size-base: 14px;
+@line-height-base: 1.6;
+@border-radius-base: 6px;
+
+@layout-body-background: #f5f6f4;
+@layout-header-background: #ffffff;
+@layout-header-height: 60px;
+@layout-header-padding: 0 20px;
+@body-background: #f5f6f4;
+@text-color: fade(#000, 88%);
+@text-color-secondary: fade(#000, 55%);
+
+// Ant's palette algorithm turns dark brand colours into grey at the light end (#1a7a56 → #afbab4), which made
+// selected rows/menus and success/info alerts look muddy. Pin the light shades to the app tokens (styles.scss).
+@primary-1: #e6f4ee;
+@primary-2: #cbe9db;
+@primary-3: #a6d8c1;
+@success-color-deprecated-bg: #e6f4ee;
+@success-color-deprecated-border: #a6d8c1;
+@info-color-deprecated-bg: #e6f4ff;
+@info-color-deprecated-border: #a9cbec;
+@alert-success-bg-color: @success-color-deprecated-bg;
+@alert-success-border-color: @success-color-deprecated-border;
+@alert-info-bg-color: @info-color-deprecated-bg;
+@alert-info-border-color: @info-color-deprecated-border;

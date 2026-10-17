@@ -1,0 +1,24 @@
+@api = http://localhost:5080
+
+### Health (DB + Ollama models)
+GET {{api}}/api/health
+
+### Upload receipts
+POST {{api}}/api/receipts
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="files"; filename="sample-receipt.jpg"
+Content-Type: image/jpeg
+
+< ../../../samples/sample-receipt.jpg
+--boundary--
+
+### List receipts needing review
+GET {{api}}/api/receipts?status=NeedsReview
+
+### Stats
+GET {{api}}/api/receipts/stats
+
+### Vendors learned so far
+GET {{api}}/api/vendors

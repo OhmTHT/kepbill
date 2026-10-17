@@ -1,0 +1,13 @@
+/*
+ * Tailwind for layout (flex, grid, spacing, responsive). Component looks come from ng-zorro (src/theme.less).
+ *
+ * - Preflight (Tailwind's CSS reset) is left out on purpose: it would restyle Ant Design's buttons, headings and lists.
+ * - Utilities are imported without a cascade layer. Ant Design's CSS is unlayered, and unlayered rules always beat
+ *   layered ones, so layered utilities could never adjust an nz-* element. Unlayered and loaded after theme.less
+ *   (see angular.json "styles"), a utility wins over an Ant rule of the same specificity.
+ */
+@layer theme;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css';
+
+@source './app';

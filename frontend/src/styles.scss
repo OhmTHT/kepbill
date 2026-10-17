@@ -1,0 +1,258 @@
+/*
+ * App tokens and a few visual helpers. Layout (flex, grid, spacing, responsive) is done with Tailwind utilities
+ * in the templates (src/tailwind.css); component looks come from ng-zorro (src/theme.less).
+ */
+:root {
+  --paper: #f5f6f4;
+  --surface: #ffffff;
+  --surface-2: #fafbf9;
+  --line: #e8eae5;
+  --line-strong: #d3d7cf;
+  --ink: rgb(0 0 0 / 0.88);
+  --ink-2: rgb(0 0 0 / 0.65);
+  --ink-3: rgb(0 0 0 / 0.45);
+  --accent: #1a7a56;
+  --accent-soft: #e6f4ee;
+  --warn: #ad6800;
+  --warn-soft: #fffbe6;
+  --error: #c4321f;
+  --error-soft: #fff1f0;
+  --info: #23609b;
+  --info-soft: #e6f4ff;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+body {
+  background: var(--paper);
+}
+
+.num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.muted {
+  color: var(--ink-3);
+}
+
+/* payment status text */
+.pay {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  &.Unpaid {
+    color: var(--error);
+  }
+  &.Partial {
+    color: var(--warn);
+  }
+  &.Paid {
+    color: var(--accent);
+  }
+  &.NotApplicable {
+    color: var(--ink-3);
+  }
+}
+
+/* journal lines: credit side indented, accounting style */
+.indent {
+  padding-left: 36px !important;
+}
+
+/* clickable table rows */
+tr.click {
+  cursor: pointer;
+}
+
+/* Wide tables scroll inside their card instead of stretching the page on narrow screens. */
+.ant-table-content {
+  overflow-x: auto;
+}
+
+/*
+ * Segmented toggle (ฝั่งซื้อ/ฝั่งขาย etc.): <div class="seg" role="tablist"> with <button class="seg-btn">.
+ * .seg-sm matches the height of default inputs.
+ */
+.seg {
+  display: inline-grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.seg-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 38px;
+  min-width: 120px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 15px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+
+  &:hover:not(.active) {
+    background: var(--surface-2);
+    color: var(--ink);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  &.active {
+    background: var(--accent);
+    color: #fff;
+    font-weight: 500;
+    box-shadow: 0 1px 2px rgb(26 122 86 / 0.25);
+  }
+}
+
+.seg-sm {
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+
+  .seg-btn {
+    height: 26px;
+    min-width: 0;
+    padding: 0 14px;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+}
+
+/*
+ * nz-col on the same element as nz-form-item doesn't get the row's gutter padding (ng-zorro only sets the row's
+ * negative margin), so fields touched each other. Rows of form items use [nzGutter]="12"; pad to match.
+ */
+.ant-row > .ant-form-item.ant-col {
+  padding-inline: 6px;
+}
+
+/* Hints (nzExtra) and validation messages under a field: a size smaller than the input, with a little air above. */
+.ant-form-item-extra,
+.ant-form-item-explain {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.ant-form-item-extra {
+  padding-top: 6px;
+}
+.ant-form-item-explain {
+  padding-top: 4px;
+}
+/* when a field shows both an error and its hint, keep them visually together */
+.ant-form-item-explain + .ant-form-item-extra {
+  padding-top: 2px;
+}
+/* ng-zorro drops a field's bottom margin while it shows an error; with a hint as well, the next label would touch it */
+.ant-form-item-with-help:has(.ant-form-item-extra) {
+  margin-bottom: 20px;
+}
+
+/* long divider titles wrap instead of widening the page on phones (the trailing line gives up its space first) */
+.ant-divider-inner-text {
+  white-space: normal;
+}
+.ant-divider-horizontal.ant-divider-with-text-left::after {
+  flex: 1 1 0;
+  width: auto;
+}
+
+/*
+ * iOS Safari zooms the page in when a field with text under 16px gets focus (inputs, textareas, and the hidden
+ * search input inside nz-select / nz-date-picker). On touch screens, make every field 16px. Zoom is not turned off
+ * with maximum-scale in the viewport instead: Android would then block pinch-zoom too.
+ * !important: Ant sizes these through several more specific selectors (-lg/-sm, affix wrappers, pickers).
+ */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select,
+  .ant-input,
+  .ant-input-affix-wrapper,
+  .ant-input-number,
+  .ant-input-number-input,
+  .ant-select,
+  .ant-select-selection-search-input,
+  .ant-picker,
+  .ant-picker-input > input {
+    font-size: 16px !important;
+  }
+}
+
+/*
+ * Phones: modals become a full-width sheet at the bottom of the screen, closer to the thumb than a box 100px from
+ * the top. margin-top: auto (not align-items: flex-end) so a modal taller than the screen still scrolls from its top.
+ * !important on width: nz-modal sets it inline (520px by default).
+ */
+@media (max-width: 639px) {
+  .ant-modal-wrap {
+    display: flex;
+    flex-direction: column;
+  }
+  .ant-modal {
+    top: 0;
+    width: 100% !important;
+    max-width: 100%;
+    margin: auto 0 0;
+    padding-bottom: 0;
+  }
+  .ant-modal-content {
+    border-radius: 12px 12px 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  /* Footer buttons (and a confirm dialog's) share the row: bigger targets for a thumb. */
+  .ant-modal-footer,
+  .ant-modal-confirm-btns {
+    display: flex;
+    gap: 8px;
+    > .ant-btn {
+      flex: 1;
+      margin: 0 !important;
+    }
+  }
+}
+
+/* A field the AI is filling: locked, with a shimmering skeleton over it. The AI button stays visible on top. */
+.ai-busy {
+  position: relative;
+  pointer-events: none;
+}
+.ai-busy::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: 6px;
+  background:
+    linear-gradient(90deg, rgb(0 0 0 / 0.04) 25%, rgb(0 0 0 / 0.11) 37%, rgb(0 0 0 / 0.04) 63%) 0 0 / 400% 100%,
+    var(--surface);
+  animation: ai-shimmer 1.4s ease infinite;
+}
+.ai-busy app-ai-suggest {
+  position: relative;
+  z-index: 3;
+}
+@keyframes ai-shimmer {
+  from { background-position: 100% 50%, 0 0; }
+  to { background-position: 0 50%, 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-busy::after { animation: none; }
+}

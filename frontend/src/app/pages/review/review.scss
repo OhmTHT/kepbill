@@ -1,0 +1,259 @@
+/* Visual styling only — layout is Tailwind utilities in review.html. */
+
+/* ---------- viewer ---------- */
+.viewer-bar {
+  border-bottom: 1px solid var(--line);
+}
+
+.filename {
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.zoom span {
+  min-width: 48px;
+  text-align: center;
+  font-size: 12px;
+}
+
+.canvas {
+  background: var(--surface-2);
+
+  img {
+    display: block;
+    max-width: none;
+    height: auto;
+    transform-origin: center center;
+    transition: transform 0.15s;
+    box-shadow: 0 2px 12px rgb(0 0 0 / 0.12);
+    background: #fff;
+  }
+  iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: #fff;
+  }
+}
+
+.hint {
+  font-size: 12px;
+  border-top: 1px solid var(--line);
+}
+
+/* ---------- panel ---------- */
+.panel-head {
+  border-bottom: 1px solid var(--line);
+}
+
+.meta {
+  font-size: 13px;
+}
+
+/* validation summary: one bordered panel, coloured edge = worst severity */
+.issues {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--warn);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 13px;
+
+  .issues-head {
+    background: var(--warn-soft);
+    .head-icon {
+      color: var(--warn);
+    }
+  }
+
+  &.has-error {
+    border-left-color: var(--error);
+    .issues-head {
+      background: var(--error-soft);
+      .head-icon {
+        color: var(--error);
+      }
+    }
+  }
+
+  .hint-text {
+    font-size: 12px;
+  }
+}
+
+.issue-list li {
+  border-top: 1px solid var(--line);
+  color: var(--ink);
+  line-height: 1.5;
+
+  &:hover {
+    background: var(--surface-2);
+  }
+
+  .dot {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    margin-top: 7px;
+    border-radius: 50%;
+    background: var(--warn);
+  }
+  &.Error .dot {
+    background: var(--error);
+  }
+}
+
+.issues-more {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 6px 12px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--surface-2);
+  }
+}
+
+.note {
+  font-size: 13px;
+}
+
+.mismatch {
+  color: var(--error);
+  font-weight: 600;
+}
+
+.line-head span {
+  font-size: 12px;
+  color: var(--ink-3);
+  padding: 0 2px;
+}
+
+.lines-foot {
+  font-size: 14px;
+  a {
+    margin-left: 6px;
+  }
+}
+
+.totals {
+  label:not([nz-checkbox]) {
+    text-align: right;
+    color: var(--ink-2);
+  }
+  .net-payable {
+    padding-right: 11px; // lines up with the numbers inside the inputs above
+    text-align: right;
+  }
+  .strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .hint {
+    padding-top: 2px;
+    border: 0;
+    text-align: right;
+  }
+}
+
+.total-input {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* rule violations on number inputs (nz-input-number has no validate status of its own here) */
+.is-error {
+  border-color: var(--error) !important;
+  background: var(--error-soft);
+}
+
+.is-warn {
+  border-color: #faad14 !important;
+  background: var(--warn-soft);
+}
+
+.paysum {
+  color: var(--ink-2);
+  b {
+    color: var(--ink);
+    font-weight: 600;
+  }
+}
+
+pre {
+  max-height: 320px;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+h4 {
+  margin: 10px 0 4px;
+}
+
+.actions {
+  border-top: 1px solid var(--line);
+  background: var(--surface-2);
+  container-type: inline-size;
+}
+
+/*
+ * Narrow card (phones): delete / re-read / discard become icon-only and save + approve share the rest of the row,
+ * instead of wrapping onto a second ragged line. Plain CSS: the same rules as Tailwind @container utilities didn't
+ * resize the buttons, and the labels need !important to beat Ant's `.ant-btn > span { display: inline-block }`.
+ */
+@container (width < 560px) {
+  .actions {
+    .lbl {
+      display: none !important;
+    }
+    .spacer {
+      display: none;
+    }
+    .primary-actions {
+      flex: auto;
+      > button {
+        flex: auto;
+      }
+    }
+  }
+}
+
+/* Training AI pin toggle (admins, approved documents) */
+.example-toggle {
+  color: var(--ink-3);
+  &.on {
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+}
+
+/* line items in a narrow card: each line is a small card (description row + labelled numbers row) */
+@container (width < 520px) {
+  .line-row {
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface-2);
+  }
+}
+
+.mini-label {
+  color: var(--ink-3);
+  font-size: 12px;
+  text-align: right;
+}

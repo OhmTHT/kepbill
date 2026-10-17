@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ReceiptReader.Domain/ReceiptReader.Domain.csproj" />
+    <Project Path="src/ReceiptReader.Application/ReceiptReader.Application.csproj" />
+    <Project Path="src/ReceiptReader.Infrastructure/ReceiptReader.Infrastructure.csproj" />
+    <Project Path="src/ReceiptReader.Api/ReceiptReader.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ReceiptReader.Application.Tests/ReceiptReader.Application.Tests.csproj" />
+  </Folder>
+</Solution>

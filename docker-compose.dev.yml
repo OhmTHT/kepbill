@@ -1,0 +1,32 @@
+# Dev mode: only infrastructure in Docker; run the API with `dotnet run` and the UI with `npm start`.
+#   docker compose -f docker-compose.dev.yml up -d
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: receipts
+      POSTGRES_USER: receipts
+      POSTGRES_PASSWORD: receipts
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata-dev:/var/lib/postgresql/data
+
+  # Remove this service if Ollama is installed natively (recommended on Windows for easy GPU access).
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-dev:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  pgdata-dev:
+  ollama-dev:
